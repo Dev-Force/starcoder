@@ -2,6 +2,7 @@ import argparse
 import os
 
 import torch
+import safetensors.torch  as sttorch 
 from accelerate import Accelerator
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, prepare_model_for_int8_training, set_peft_model_state_dict
@@ -41,8 +42,8 @@ class LoadBestPeftModelCallback(TrainerCallback):
         **kwargs,
     ):
         print(f"Loading best peft model from {state.best_model_checkpoint} (score: {state.best_metric}).")
-        best_model_path = os.path.join(state.best_model_checkpoint, "adapter_model.bin")
-        adapters_weights = torch.load(best_model_path)
+        best_model_path = os.path.join(state.best_model_checkpoint, "adapter_model.safetensors")
+        adapters_weights = sttorch.load_file(best_model_path)
         model = kwargs["model"]
         set_peft_model_state_dict(model, adapters_weights)
         return control
@@ -247,9 +248,9 @@ def run_training(args, train_data, val_data):
     model = prepare_model_for_int8_training(model)
 
     lora_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
+        r=args.lora_r, # !!!!!!!!!
+        lora_alpha=args.lora_alpha, # !!!!!!!!!
+        lora_dropout=args.lora_dropout, # !!!!!!!!!
         bias="none",
         task_type="CAUSAL_LM",
         target_modules = ["c_proj", "c_attn", "q_attn"]
@@ -269,26 +270,33 @@ def run_training(args, train_data, val_data):
         evaluation_strategy="steps",
         save_strategy="steps",
         load_best_model_at_end=True,
-        max_steps=args.max_steps,
+        max_steps=args.max_steps, # !!!!!!!!!
         eval_steps=args.eval_freq,
         save_steps=args.save_freq,
         logging_steps=args.log_freq,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        lr_scheduler_type=args.lr_scheduler_type,
-        warmup_steps=args.num_warmup_steps,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        learning_rate=args.learning_rate, # !!!!!!!!!
+        lr_scheduler_type=args.lr_scheduler_type, # !!!!!!!!!
+        warmup_steps=args.num_warmup_steps, # !!!!!!!!!
+        gradient_accumulation_steps=args.gradient_accumulation_steps, # !!!!!!!!!
         gradient_checkpointing=not args.no_gradient_checkpointing,
         fp16=not args.no_fp16,
         bf16=args.bf16,
-        weight_decay=args.weight_decay,
+        weight_decay=args.weight_decay, # !!!!!!!!!
         run_name="StarCoder-finetuned",
         report_to="wandb",
         ddp_find_unused_parameters=False,
+        disable_tqdm=False,
     )
 
-    trainer = Trainer(model=model, args=training_args, train_dataset=train_data, eval_dataset=val_data, callbacks=[SavePeftModelCallback, LoadBestPeftModelCallback])
+    trainer = Trainer(
+        model=model, 
+        args=training_args, 
+        train_dataset=train_data, 
+        eval_dataset=val_data, 
+        callbacks=[SavePeftModelCallback, LoadBestPeftModelCallback],
+    )
 
     print("Training...")
     trainer.train()
