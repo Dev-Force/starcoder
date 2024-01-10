@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, logging
 from peft import PeftModel
 import torch
 
@@ -14,6 +14,8 @@ def get_args():
     return parser.parse_args()
 
 def main():
+    logging.set_verbosity_info()
+    logging.enable_progress_bar() 
     args = get_args()
 
     base_model = AutoModelForCausalLM.from_pretrained(
